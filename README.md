@@ -1,2 +1,2 @@
 # editable-history
-make modern browser history editable
+Make the browser history control in SPA more convenient.
