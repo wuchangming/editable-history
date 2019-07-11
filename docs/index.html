@@ -1,0 +1,44 @@
+<html>
+
+<head>
+    <title>editable-history</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+</head>
+
+<body>
+    index: <input id="index" />
+    <button onclick="push()">push</button>
+    <button onclick="active()">active</button>
+    <button onclick="replace()">replace</button>
+    <pre style="color: brown" id="popstate"></pre>
+    <pre id="showState"></pre>
+
+</body>
+<script src="./mobx.js"></script>
+<script src="./editable-history.js"></script>
+<script>
+    function display() {
+        mobx.autorun(() => {
+            document.getElementById('showState').innerHTML = JSON.stringify(editableHistory.historyList, null, 2)
+        })
+    }
+    var editableHistory = EditableHistory.createEditableHistory({
+        useHash: true
+    })
+    function getValue() {
+        var value = document.getElementById('index').value
+        return value === '' ? undefined : ~~value
+    }
+    function push() {
+        editableHistory.push({ state: 'A', keyOrIndex: getValue(), url: '/aa' })
+    }
+    function active() {
+        editableHistory.active(getValue())
+    }
+    function replace() {
+        editableHistory.replace({ state: 'replaceA', keyOrIndex: getValue() })
+    }
+    display()
+</script>
+
+</html>
