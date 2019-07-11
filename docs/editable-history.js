@@ -169,7 +169,7 @@
 	const rawHistory = window.history;
 	class HistoryEditor {
 	    constructor({ basename = '', initState, useHash = false }) {
-	        this.rawHistoryList = [];
+	        this.rawHistoryList = mobx.observable([]);
 	        this.basename = '';
 	        this.useHash = false;
 	        this.indexOf = (keyOrIndex) => {
@@ -306,6 +306,9 @@
 	                    historyKey,
 	                    state
 	                }, '', absoluteUrl);
+	                this.rawHistoryList.forEach(historyObject => {
+	                    historyObject.isActive = false;
+	                });
 	                this.rawHistoryList.forEach((historyObject, index) => {
 	                    if (index === targetIndex) {
 	                        historyObject.historyKey = historyKey;
@@ -337,7 +340,6 @@
 	        };
 	        this.basename = basename ? PathUtils.stripTrailingSlash(PathUtils.addLeadingSlash(basename)) : '';
 	        this.useHash = useHash;
-	        this.rawHistoryList = mobx.observable(this.rawHistoryList);
 	        window.addEventListener(PopStateEvent, this.handlerRawHistoryState);
 	        const { historyKey = undefined, state = undefined } = rawHistory.state || {};
 	        if (utils.isKey(historyKey)) {

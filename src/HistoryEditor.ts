@@ -232,6 +232,9 @@ export class HistoryEditor {
                 '',
                 absoluteUrl
             )
+            this.rawHistoryList.forEach(historyObject => {
+                historyObject.isActive = false
+            })
             this.rawHistoryList.forEach((historyObject, index) => {
                 if (index === targetIndex) {
                     historyObject.historyKey = historyKey
