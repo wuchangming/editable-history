@@ -18,9 +18,11 @@
 
 	var createHistoryKey_1 = createCommonjsModule(function (module, exports) {
 	Object.defineProperty(exports, "__esModule", { value: true });
-	let keyIndex = 0;
+	let keyLength = 8;
 	function createHistoryKey() {
-	    return `${keyIndex++}`;
+	    return Math.random()
+	        .toString(36)
+	        .substr(2, keyLength);
 	}
 	exports.default = createHistoryKey;
 
@@ -194,7 +196,7 @@
 	            });
 	        };
 	        this.handlerRawHistoryState = (ev) => {
-	            const { historyKey = undefined } = ev.state || {};
+	            const { historyKey = undefined, state = undefined } = ev.state || {};
 	            if (this.predictionAction && this.predictionAction.key === historyKey) {
 	                const cb = this.predictionAction.cb;
 	                this.predictionAction = undefined;
@@ -203,14 +205,45 @@
 	                }
 	            }
 	            else {
-	                this.rawHistoryList.forEach(historyObject => {
-	                    if (historyObject.historyKey === historyKey) {
-	                        historyObject.isActive = true;
+	                if (utils.isKey(historyKey)) {
+	                    if (this.indexOf(historyKey) > -1) {
+	                        this.rawHistoryList.forEach(historyObject => {
+	                            if (historyObject.historyKey === historyKey) {
+	                                historyObject.isActive = true;
+	                            }
+	                            else {
+	                                historyObject.isActive = false;
+	                            }
+	                        });
 	                    }
 	                    else {
-	                        historyObject.isActive = false;
+	                        this.rawHistoryList.forEach(historyObject => {
+	                            historyObject.isActive = false;
+	                        });
+	                        this.rawHistoryList.push({
+	                            historyKey,
+	                            state,
+	                            isActive: true,
+	                            location: utils.getLocation(this.useHash ? utils.getHashPath() : window.location.pathname, this.basename)
+	                        });
 	                    }
-	                });
+	                }
+	                else {
+	                    const newHistoryKey = createHistoryKey_1$1.default();
+	                    rawHistory.replaceState({
+	                        historyKey: newHistoryKey
+	                    }, '');
+	                    this.rawHistoryList.splice(this.indexOfActive() + 1, this.rawHistoryList.length - this.indexOfActive());
+	                    this.rawHistoryList.forEach(historyObject => {
+	                        historyObject.isActive = false;
+	                    });
+	                    this.rawHistoryList.push({
+	                        historyKey: newHistoryKey,
+	                        state: undefined,
+	                        isActive: true,
+	                        location: utils.getLocation(this.useHash ? utils.getHashPath() : window.location.pathname, this.basename)
+	                    });
+	                }
 	            }
 	        };
 	        this.stepProcessor = (targetIndex, cb) => {
@@ -241,7 +274,8 @@
 	            const absoluteUrl = utils.getAbsolutePath(url, this.useHash, this.basename);
 	            this.stepProcessor(targetIndex, () => {
 	                rawHistory.pushState({
-	                    historyKey
+	                    historyKey,
+	                    state
 	                }, '', absoluteUrl);
 	                this.rawHistoryList.splice(targetIndex + 1, this.rawHistoryList.length - targetIndex);
 	                this.rawHistoryList.forEach(historyObject => {
@@ -269,7 +303,8 @@
 	            const absoluteUrl = utils.getAbsolutePath(url, this.useHash, this.basename);
 	            this.stepProcessor(targetIndex, () => {
 	                rawHistory.replaceState({
-	                    historyKey
+	                    historyKey,
+	                    state
 	                }, '', absoluteUrl);
 	                this.rawHistoryList.forEach((historyObject, index) => {
 	                    if (index === targetIndex) {
@@ -302,18 +337,30 @@
 	        };
 	        this.basename = basename ? PathUtils.stripTrailingSlash(PathUtils.addLeadingSlash(basename)) : '';
 	        this.useHash = useHash;
-	        window.addEventListener(PopStateEvent, this.handlerRawHistoryState);
-	        const historyKey = createHistoryKey_1$1.default();
 	        this.rawHistoryList = mobx.observable(this.rawHistoryList);
-	        rawHistory.replaceState({
-	            historyKey
-	        }, '');
-	        this.rawHistoryList.push({
-	            historyKey,
-	            state: initState,
-	            isActive: true,
-	            location: utils.getLocation(this.useHash ? utils.getHashPath() : window.location.pathname, this.basename)
-	        });
+	        window.addEventListener(PopStateEvent, this.handlerRawHistoryState);
+	        const { historyKey = undefined, state = undefined } = rawHistory.state || {};
+	        if (utils.isKey(historyKey)) {
+	            this.rawHistoryList.push({
+	                historyKey,
+	                state,
+	                isActive: true,
+	                location: utils.getLocation(this.useHash ? utils.getHashPath() : window.location.pathname, this.basename)
+	            });
+	        }
+	        else {
+	            const historyKey = createHistoryKey_1$1.default();
+	            rawHistory.replaceState({
+	                historyKey,
+	                state: initState
+	            }, '');
+	            this.rawHistoryList.push({
+	                historyKey,
+	                state: initState,
+	                isActive: true,
+	                location: utils.getLocation(this.useHash ? utils.getHashPath() : window.location.pathname, this.basename)
+	            });
+	        }
 	    }
 	    get historyList() {
 	        return this.rawHistoryList;

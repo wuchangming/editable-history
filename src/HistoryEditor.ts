@@ -38,23 +38,37 @@ export class HistoryEditor {
         this.basename = basename ? stripTrailingSlash(addLeadingSlash(basename)) : ''
         this.useHash = useHash
         window.addEventListener(PopStateEvent, this.handlerRawHistoryState)
-        const historyKey = createHistoryKey()
-        rawHistory.replaceState(
-            {
+
+        const { historyKey = undefined, state = undefined } = rawHistory.state || {}
+        if (isKey(historyKey)) {
+            this.rawHistoryList.push({
                 historyKey,
-                state: initState
-            },
-            ''
-        )
-        this.rawHistoryList.push({
-            historyKey,
-            state: initState,
-            isActive: true,
-            location: getLocation(
-                this.useHash ? getHashPath() : window.location.pathname,
-                this.basename
+                state,
+                isActive: true,
+                location: getLocation(
+                    this.useHash ? getHashPath() : window.location.pathname,
+                    this.basename
+                )
+            })
+        } else {
+            const historyKey = createHistoryKey()
+            rawHistory.replaceState(
+                {
+                    historyKey,
+                    state: initState
+                },
+                ''
             )
-        })
+            this.rawHistoryList.push({
+                historyKey,
+                state: initState,
+                isActive: true,
+                location: getLocation(
+                    this.useHash ? getHashPath() : window.location.pathname,
+                    this.basename
+                )
+            })
+        }
     }
 
     predictionAction?: {
@@ -93,7 +107,6 @@ export class HistoryEditor {
                 cb()
             }
         } else {
-            
             if (isKey(historyKey)) {
                 if (this.indexOf(historyKey) > -1) {
                     this.rawHistoryList.forEach(historyObject => {

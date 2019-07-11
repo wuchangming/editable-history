@@ -1,4 +1,6 @@
-let keyIndex = 0
+let keyLength = 8
 export default function createHistoryKey() {
-    return `${keyIndex++}`
+    return Math.random()
+        .toString(36)
+        .substr(2, keyLength)
 }
