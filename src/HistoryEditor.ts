@@ -41,7 +41,8 @@ export class HistoryEditor {
         const historyKey = createHistoryKey()
         rawHistory.replaceState(
             {
-                historyKey
+                historyKey,
+                state: initState
             },
             ''
         )
@@ -84,7 +85,7 @@ export class HistoryEditor {
     }
 
     handlerRawHistoryState = (ev: PopStateEvent) => {
-        const { historyKey = undefined } = ev.state || {}
+        const { historyKey = undefined, state = undefined } = ev.state || {}
         if (this.predictionAction && this.predictionAction.key === historyKey) {
             const cb = this.predictionAction.cb
             this.predictionAction = undefined
@@ -92,13 +93,55 @@ export class HistoryEditor {
                 cb()
             }
         } else {
-            this.rawHistoryList.forEach(historyObject => {
-                if (historyObject.historyKey === historyKey) {
-                    historyObject.isActive = true
+            
+            if (isKey(historyKey)) {
+                if (this.indexOf(historyKey) > -1) {
+                    this.rawHistoryList.forEach(historyObject => {
+                        if (historyObject.historyKey === historyKey) {
+                            historyObject.isActive = true
+                        } else {
+                            historyObject.isActive = false
+                        }
+                    })
                 } else {
-                    historyObject.isActive = false
+                    this.rawHistoryList.forEach(historyObject => {
+                        historyObject.isActive = false
+                    })
+                    this.rawHistoryList.push({
+                        historyKey,
+                        state,
+                        isActive: true,
+                        location: getLocation(
+                            this.useHash ? getHashPath() : window.location.pathname,
+                            this.basename
+                        )
+                    })
                 }
-            })
+            } else {
+                const newHistoryKey = createHistoryKey()
+                rawHistory.replaceState(
+                    {
+                        historyKey: newHistoryKey
+                    },
+                    ''
+                )
+                this.rawHistoryList.splice(
+                    this.indexOfActive() + 1,
+                    this.rawHistoryList.length - this.indexOfActive()
+                )
+                this.rawHistoryList.forEach(historyObject => {
+                    historyObject.isActive = false
+                })
+                this.rawHistoryList.push({
+                    historyKey: newHistoryKey,
+                    state: undefined,
+                    isActive: true,
+                    location: getLocation(
+                        this.useHash ? getHashPath() : window.location.pathname,
+                        this.basename
+                    )
+                })
+            }
         }
     }
 
@@ -133,7 +176,8 @@ export class HistoryEditor {
         this.stepProcessor(targetIndex, () => {
             rawHistory.pushState(
                 {
-                    historyKey
+                    historyKey,
+                    state
                 },
                 '',
                 absoluteUrl
@@ -169,7 +213,8 @@ export class HistoryEditor {
         this.stepProcessor(targetIndex, () => {
             rawHistory.replaceState(
                 {
-                    historyKey
+                    historyKey,
+                    state
                 },
                 '',
                 absoluteUrl
