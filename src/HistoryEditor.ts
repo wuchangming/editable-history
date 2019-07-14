@@ -1,15 +1,20 @@
-import createHistoryKey from './createHistoryKey'
+import deepEqual from 'deep-equal'
+import { createHistoryKey, isEditableHistoryState } from './utils'
 import { isKey, isIndex, getLocation, getHashPath, getAbsolutePath } from './utils'
 import { stripTrailingSlash, addLeadingSlash } from './history-utils/PathUtils'
 
 const PopStateEvent = 'popstate'
 const rawHistory = window.history
 
-export type historyObject = {
-    isActive: boolean
-    historyKey: string
-    state: unknown
-    location: unknown
+type ScreenStateObject = {
+    k: string //history key
+    s: unknown // business state
+    l: string // `window.location.href` or `hash`
+}
+
+type HistoryState = {
+    eh_ck: string // current key
+    eh_sl: ScreenStateObject[] // screen state list
 }
 
 type HistoryEditorProps = {
@@ -31,7 +36,7 @@ type ReplaceParams = {
 }
 
 export class HistoryEditor {
-    private rawHistoryList: historyObject[] = []
+    private historyState: HistoryState
     private basename = ''
     private useHash = false
     constructor({ basename = '', initState, useHash = false }: HistoryEditorProps) {
@@ -39,17 +44,8 @@ export class HistoryEditor {
         this.useHash = useHash
         window.addEventListener(PopStateEvent, this.handlerRawHistoryState)
 
-        const { historyKey = undefined, state = undefined } = rawHistory.state || {}
-        if (isKey(historyKey)) {
-            this.rawHistoryList.push({
-                historyKey,
-                state,
-                isActive: true,
-                location: getLocation(
-                    this.useHash ? getHashPath() : window.location.pathname,
-                    this.basename
-                )
-            })
+        if (isEditableHistoryState(rawHistory.state)) {
+            this.historyState = rawHistory.state
         } else {
             const historyKey = createHistoryKey()
             rawHistory.replaceState(
@@ -59,15 +55,18 @@ export class HistoryEditor {
                 },
                 ''
             )
-            this.rawHistoryList.push({
-                historyKey,
-                state: initState,
-                isActive: true,
-                location: getLocation(
-                    this.useHash ? getHashPath() : window.location.pathname,
-                    this.basename
-                )
-            })
+
+            const newHistoryState = {
+                eh_ck: historyKey,
+                eh_sl: [
+                    {
+                        k: historyKey,
+                        s: initState,
+                        l: this.useHash ? getHashPath() : window.location.href
+                    }
+                ]
+            }
+            this.historyState = newHistoryState
         }
     }
 
@@ -78,11 +77,11 @@ export class HistoryEditor {
 
     indexOf = (keyOrIndex: string | number): number => {
         if (isKey(keyOrIndex)) {
-            return this.rawHistoryList.findIndex(historyObject => {
-                return historyObject.historyKey === keyOrIndex
+            return this.historyState.eh_sl.findIndex(stateObject => {
+                return stateObject.k === keyOrIndex
             })
         } else if (isIndex(keyOrIndex)) {
-            if (this.rawHistoryList[keyOrIndex as number]) {
+            if (this.historyState.eh_sl[keyOrIndex as number]) {
                 return keyOrIndex as number
             } else {
                 return -1
@@ -93,67 +92,44 @@ export class HistoryEditor {
     }
 
     indexOfActive = () => {
-        return this.historyList.findIndex(history => {
-            return history.isActive
+        return this.historyState.eh_sl.findIndex(stateObject => {
+            return stateObject.k === this.historyState.eh_ck
         })
     }
 
     handlerRawHistoryState = (ev: PopStateEvent) => {
-        const { historyKey = undefined, state = undefined } = ev.state || {}
-        if (this.predictionAction && this.predictionAction.key === historyKey) {
+        const { eh_ck = undefined, eh_sl = undefined } = ev.state || {}
+        if (this.predictionAction && this.predictionAction.key === eh_ck) {
             const cb = this.predictionAction.cb
             this.predictionAction = undefined
             if (typeof cb === 'function') {
                 cb()
             }
         } else {
-            if (isKey(historyKey)) {
-                if (this.indexOf(historyKey) > -1) {
-                    this.rawHistoryList.forEach(historyObject => {
-                        if (historyObject.historyKey === historyKey) {
-                            historyObject.isActive = true
-                        } else {
-                            historyObject.isActive = false
-                        }
-                    })
-                } else {
-                    this.rawHistoryList.forEach(historyObject => {
-                        historyObject.isActive = false
-                    })
-                    this.rawHistoryList.push({
-                        historyKey,
-                        state,
-                        isActive: true,
-                        location: getLocation(
-                            this.useHash ? getHashPath() : window.location.pathname,
-                            this.basename
-                        )
-                    })
+            if (isEditableHistoryState(ev.state)) {
+                if (!deepEqual(this.historyState.eh_sl, eh_sl)) {
+                    rawHistory.replaceState(this.historyState, '')
+                    this.historyState.eh_sl = eh_sl
                 }
+                this.historyState.eh_ck = eh_ck
             } else {
                 const newHistoryKey = createHistoryKey()
-                rawHistory.replaceState(
-                    {
-                        historyKey: newHistoryKey
-                    },
-                    ''
-                )
-                this.rawHistoryList.splice(
+
+                const newStateList = this.historyState.eh_sl.splice(
                     this.indexOfActive() + 1,
-                    this.rawHistoryList.length - this.indexOfActive()
+                    this.historyState.eh_sl.length - this.indexOfActive()
                 )
-                this.rawHistoryList.forEach(historyObject => {
-                    historyObject.isActive = false
+                newStateList.push({
+                    k: newHistoryKey,
+                    s: undefined,
+                    l: this.useHash ? getHashPath() : window.location.pathname
                 })
-                this.rawHistoryList.push({
-                    historyKey: newHistoryKey,
-                    state: undefined,
-                    isActive: true,
-                    location: getLocation(
-                        this.useHash ? getHashPath() : window.location.pathname,
-                        this.basename
-                    )
-                })
+                const newHistoryState = {
+                    eh_ck,
+                    eh_sl: newStateList
+                }
+                rawHistory.replaceState(newHistoryKey, '')
+                this.historyState = newHistoryState
             }
         }
     }
@@ -162,7 +138,7 @@ export class HistoryEditor {
         targetIndex = this.indexOf(targetIndex)
         const activeIndex = this.indexOfActive()
         if (targetIndex !== activeIndex && targetIndex > -1) {
-            const predictionKey = this.historyList[targetIndex].historyKey
+            const predictionKey = this.historyState.eh_sl[targetIndex].k
             this.predictionAction = {
                 key: predictionKey,
                 cb
@@ -187,28 +163,19 @@ export class HistoryEditor {
         const absoluteUrl = getAbsolutePath(url, this.useHash, this.basename)
 
         this.stepProcessor(targetIndex, () => {
-            rawHistory.pushState(
-                {
-                    historyKey,
-                    state
-                },
-                '',
-                absoluteUrl
+            const newStateList = this.historyState.eh_sl.splice(
+                targetIndex + 1,
+                this.historyState.eh_sl.length - targetIndex
             )
-            this.rawHistoryList.splice(targetIndex + 1, this.rawHistoryList.length - targetIndex)
 
-            this.rawHistoryList.forEach(historyObject => {
-                historyObject.isActive = false
-            })
+            const newHistoryState = {
+                eh_ck: historyKey,
+                eh_sl: newStateList
+            }
 
-            this.rawHistoryList.push({
-                isActive: true,
-                historyKey,
-                state,
-                location: url
-                    ? getLocation(url || '', '')
-                    : this.rawHistoryList[this.rawHistoryList.length - 1]
-            })
+            rawHistory.pushState(newHistoryState, '', absoluteUrl)
+
+            this.historyState = newHistoryState
         })
         return historyKey
     }
@@ -224,27 +191,21 @@ export class HistoryEditor {
         const absoluteUrl = getAbsolutePath(url, this.useHash, this.basename)
 
         this.stepProcessor(targetIndex, () => {
-            rawHistory.replaceState(
-                {
-                    historyKey,
-                    state
-                },
-                '',
-                absoluteUrl
-            )
-            this.rawHistoryList.forEach(historyObject => {
-                historyObject.isActive = false
-            })
-            this.rawHistoryList.forEach((historyObject, index) => {
+            this.historyState.eh_sl.forEach((stateObject, index) => {
                 if (index === targetIndex) {
-                    historyObject.historyKey = historyKey
-                    historyObject.isActive = true
-                    historyObject.location = url
-                        ? getLocation(url || '', '')
-                        : historyObject.location
-                    historyObject.state = state
+                    stateObject.k = historyKey
+                    stateObject.l = absoluteUrl
+                    stateObject.s = state
                 }
             })
+
+            const newHistoryState = {
+                eh_ck: historyKey,
+                eh_sl: this.historyState.eh_sl
+            }
+
+            rawHistory.replaceState(newHistoryState, '', absoluteUrl)
+            this.historyState = newHistoryState
         })
     }
 
@@ -255,17 +216,11 @@ export class HistoryEditor {
             return
         }
         this.stepProcessor(targetIndex, () => {
-            this.rawHistoryList.forEach((historyObject, index) => {
-                if (index === targetIndex) {
-                    historyObject.isActive = true
-                } else {
-                    historyObject.isActive = false
-                }
-            })
+            this.historyState.eh_ck = this.historyState.eh_sl[targetIndex].k
         })
     }
 
     get historyList() {
-        return this.rawHistoryList
+        return undefined
     }
 }

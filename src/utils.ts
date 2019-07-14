@@ -5,6 +5,10 @@ import {
     addLeadingSlash
 } from './history-utils/PathUtils'
 
+export function isEditableHistoryState(state: any = {}) {
+    return state.hasOwnProperty('eh_ck') && state.hasOwnProperty('eh_sl')
+}
+
 export function isKey(input: string | number) {
     return typeof input === 'string'
 }
@@ -44,5 +48,11 @@ export function getAbsolutePath(url: string | undefined, useHash: boolean, basen
             url = basename + stripTrailingSlash(addLeadingSlash(url))
         }
     }
-    return url
+    return url || ''
+}
+
+export function createHistoryKey() {
+    return Math.random()
+        .toString(36)
+        .substr(2, 8)
 }
