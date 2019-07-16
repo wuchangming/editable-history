@@ -217,7 +217,9 @@
 	                        this.cutHitoryList(eh_ck);
 	                    }
 	                    else {
-	                        this.historyState.eh_sl.push(eh_sl[this.historyState.eh_sl.length]);
+	                        for (let index = this.historyState.eh_sl.length; index < eh_sl.length; index++) {
+	                            this.historyState.eh_sl.push(eh_sl[index]);
+	                        }
 	                    }
 	                    this.historyState.eh_ck = eh_ck;
 	                    rawHistory.replaceState(mobx.toJS(this.historyState), '');
