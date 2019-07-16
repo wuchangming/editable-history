@@ -1,7 +1,7 @@
 import { createHistoryKey, isEditableHistoryState } from './utils'
 import { isKey, isIndex, getHashPath, getAbsolutePath } from './utils'
 import { stripTrailingSlash, addLeadingSlash } from './history-utils/PathUtils'
-import {observable, toJS} from 'mobx'
+import { observable, toJS } from 'mobx'
 
 const PopStateEvent = 'popstate'
 const rawHistory = window.history
@@ -36,7 +36,6 @@ type ReplaceParams = {
 }
 
 export class HistoryEditor {
-    
     private historyState: HistoryState
     private basename = ''
     private useHash = false
@@ -125,7 +124,13 @@ export class HistoryEditor {
                 if (this.isBack(eh_ck)) {
                     this.cutHitoryList(eh_ck)
                 } else {
-                    this.historyState.eh_sl.push(eh_sl[this.historyState.eh_sl.length])
+                    for (
+                        let index = this.historyState.eh_sl.length;
+                        index < eh_sl.length;
+                        index++
+                    ) {
+                        this.historyState.eh_sl.push(eh_sl[index])
+                    }
                 }
                 this.historyState.eh_ck = eh_ck
                 rawHistory.replaceState(toJS(this.historyState), '')
