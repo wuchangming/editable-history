@@ -89,16 +89,42 @@ export class HistoryEditor {
         })
     }
 
+    cutHitoryList = (topKey: string) => {
+        const topIndex = this.historyState.eh_sl.findIndex(s => {
+            return s.k === topKey
+        })
+        if (topIndex > -1) {
+            this.historyState.eh_sl.splice(
+                topIndex + 1,
+                this.historyState.eh_sl.length - topIndex - 1
+            )
+        }
+    }
+
+    isBack = (key: string) => {
+        return this.historyList.eh_sl.some(s => {
+            return s.k === key
+        })
+    }
+
     handlerRawHistoryState = (ev: PopStateEvent) => {
         const { eh_ck = undefined, eh_sl = undefined } = ev.state || {}
         if (this.predictionAction && this.predictionAction.key === eh_ck) {
             const cb = this.predictionAction.cb
             this.predictionAction = undefined
+            this.historyState.eh_ck = eh_ck
+            this.cutHitoryList(eh_ck)
+            rawHistory.replaceState(this.historyState, '')
             if (typeof cb === 'function') {
                 cb()
             }
         } else {
             if (isEditableHistoryState(ev.state)) {
+                if (this.isBack(eh_ck)) {
+                    this.cutHitoryList(eh_ck)
+                } else {
+                    this.historyState.eh_sl.push(eh_sl[this.historyState.eh_sl.length])
+                }
                 this.historyState.eh_ck = eh_ck
                 rawHistory.replaceState(this.historyState, '')
             } else {
@@ -125,7 +151,7 @@ export class HistoryEditor {
     stepProcessor = (targetIndex: number, cb?: Function) => {
         targetIndex = this.indexOf(targetIndex)
         const activeIndex = this.indexOfActive()
-        if (targetIndex !== activeIndex && targetIndex > -1) {
+        if (targetIndex > -1 && targetIndex < activeIndex) {
             const predictionKey = this.historyState.eh_sl[targetIndex].k
             this.predictionAction = {
                 key: predictionKey,
@@ -171,7 +197,7 @@ export class HistoryEditor {
     replace = (params: ReplaceParams) => {
         const { state, url, keyOrIndex = this.indexOfActive() } = params
         let targetIndex = this.indexOf(keyOrIndex)
-        if (targetIndex < 0) {
+        if (targetIndex < 0 || targetIndex > this.indexOfActive()) {
             console.warn(`[replace]: \`keyOrIndex\`=${keyOrIndex} is out of range'`)
             return
         }
@@ -196,13 +222,11 @@ export class HistoryEditor {
 
     active = (keyOrIndex: string | number) => {
         const targetIndex = this.indexOf(keyOrIndex)
-        if (targetIndex < 0) {
+        if (targetIndex < 0 || targetIndex > this.indexOfActive()) {
             console.warn(`[active]: \`keyOrIndex\`=${keyOrIndex} is out of range'`)
             return
         }
-        this.stepProcessor(targetIndex, () => {
-            this.historyState.eh_ck = this.historyState.eh_sl[targetIndex].k
-        })
+        this.stepProcessor(targetIndex)
     }
 
     get historyList() {
