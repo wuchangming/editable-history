@@ -20,11 +20,11 @@
 </script>
 <script>
     function display() {
-        document.getElementById('showState').innerHTML = JSON.stringify(history.state, null, 2)
         document.getElementById('showState2').innerHTML = JSON.stringify(editableHistory.historyList, null, 2)
     }
     var editableHistory = EditableHistory.createEditableHistory({
-        useHash: true
+        useHash: true,
+        basename:'examples'
     })
     window.addEventListener('popstate', function (env) {
         document.getElementById('popstate').innerHTML = 'popstate: ' + JSON.stringify(history.state, null, 2)
