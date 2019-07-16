@@ -17,14 +17,21 @@
 <script src="./mobx.js"></script>
 <script src="./editable-history.js"></script>
 <script>
+    
+    var editableHistory = EditableHistory.createEditableHistory({
+        useHash: true
+    })
+
+    // var observableHistory = mobx.observable({
+    //     key: mobx.observable.box(editableHistory.historyList.eh_ck)
+    // })
+
     function display() {
         mobx.autorun(() => {
             document.getElementById('showState').innerHTML = JSON.stringify(editableHistory.historyList, null, 2)
         })
     }
-    var editableHistory = EditableHistory.createEditableHistory({
-        useHash: true
-    })
+
     function getValue() {
         var value = document.getElementById('index').value
         return value === '' ? undefined : ~~value

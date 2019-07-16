@@ -6,8 +6,6 @@
 
 	mobx = mobx && mobx.hasOwnProperty('default') ? mobx['default'] : mobx;
 
-	var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
-
 	function unwrapExports (x) {
 		return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
 	}
@@ -15,20 +13,6 @@
 	function createCommonjsModule(fn, module) {
 		return module = { exports: {} }, fn(module, module.exports), module.exports;
 	}
-
-	var createHistoryKey_1 = createCommonjsModule(function (module, exports) {
-	Object.defineProperty(exports, "__esModule", { value: true });
-	let keyLength = 8;
-	function createHistoryKey() {
-	    return Math.random()
-	        .toString(36)
-	        .substr(2, keyLength);
-	}
-	exports.default = createHistoryKey;
-
-	});
-
-	unwrapExports(createHistoryKey_1);
 
 	var PathUtils = createCommonjsModule(function (module, exports) {
 	Object.defineProperty(exports, "__esModule", { value: true });
@@ -102,6 +86,11 @@
 	var utils = createCommonjsModule(function (module, exports) {
 	Object.defineProperty(exports, "__esModule", { value: true });
 
+	function isEditableHistoryState(state = {}) {
+	    state = state || {};
+	    return state.hasOwnProperty('eh_ck') && state.hasOwnProperty('eh_sl');
+	}
+	exports.isEditableHistoryState = isEditableHistoryState;
 	function isKey(input) {
 	    return typeof input === 'string';
 	}
@@ -127,59 +116,61 @@
 	    }
 	}
 	exports.getLocation = getLocation;
-	function getHashPath() {
-	    const href = window.location.href;
+	function getHashPath(url) {
+	    const href = url || window.location.href;
 	    const hashIndex = href.indexOf('#');
 	    return hashIndex === -1 ? '' : href.substring(hashIndex + 1);
 	}
 	exports.getHashPath = getHashPath;
 	function getAbsolutePath(url, useHash, basename) {
-	    if (url) {
-	        if (useHash) {
-	            url =
-	                window.location.pathname + '#' + basename + PathUtils.stripTrailingSlash(PathUtils.addLeadingSlash(url));
-	        }
-	        else {
-	            url = basename + PathUtils.stripTrailingSlash(PathUtils.addLeadingSlash(url));
-	        }
+	    url = url || '';
+	    if (useHash) {
+	        url = window.location.pathname + '#' + basename + PathUtils.stripTrailingSlash(PathUtils.addLeadingSlash(url));
+	    }
+	    else {
+	        url = basename + PathUtils.stripTrailingSlash(PathUtils.addLeadingSlash(url));
 	    }
 	    return url;
 	}
 	exports.getAbsolutePath = getAbsolutePath;
+	function createHistoryKey() {
+	    return Math.random()
+	        .toString(36)
+	        .substr(2, 8);
+	}
+	exports.createHistoryKey = createHistoryKey;
 
 	});
 
 	unwrapExports(utils);
-	var utils_1 = utils.isKey;
-	var utils_2 = utils.isIndex;
-	var utils_3 = utils.getLocation;
-	var utils_4 = utils.getHashPath;
-	var utils_5 = utils.getAbsolutePath;
+	var utils_1 = utils.isEditableHistoryState;
+	var utils_2 = utils.isKey;
+	var utils_3 = utils.isIndex;
+	var utils_4 = utils.getLocation;
+	var utils_5 = utils.getHashPath;
+	var utils_6 = utils.getAbsolutePath;
+	var utils_7 = utils.createHistoryKey;
 
 	var HistoryEditor_1 = createCommonjsModule(function (module, exports) {
-	var __importDefault = (commonjsGlobal && commonjsGlobal.__importDefault) || function (mod) {
-	    return (mod && mod.__esModule) ? mod : { "default": mod };
-	};
 	Object.defineProperty(exports, "__esModule", { value: true });
-	const createHistoryKey_1$1 = __importDefault(createHistoryKey_1);
 
+	const utils_2 = utils;
 
 
 	const PopStateEvent = 'popstate';
 	const rawHistory = window.history;
 	class HistoryEditor {
-	    constructor({ basename = '', initState, useHash = false }) {
-	        this.rawHistoryList = mobx.observable([]);
+	    constructor({ basename = '', initState = null, useHash = false }) {
 	        this.basename = '';
 	        this.useHash = false;
 	        this.indexOf = (keyOrIndex) => {
-	            if (utils.isKey(keyOrIndex)) {
-	                return this.rawHistoryList.findIndex(historyObject => {
-	                    return historyObject.historyKey === keyOrIndex;
+	            if (utils_2.isKey(keyOrIndex)) {
+	                return this.historyState.eh_sl.findIndex(stateObject => {
+	                    return stateObject.k === keyOrIndex;
 	                });
 	            }
-	            else if (utils.isIndex(keyOrIndex)) {
-	                if (this.rawHistoryList[keyOrIndex]) {
+	            else if (utils_2.isIndex(keyOrIndex)) {
+	                if (this.historyState.eh_sl[keyOrIndex]) {
 	                    return keyOrIndex;
 	                }
 	                else {
@@ -191,66 +182,64 @@
 	            }
 	        };
 	        this.indexOfActive = () => {
-	            return this.historyList.findIndex(history => {
-	                return history.isActive;
+	            return this.historyState.eh_sl.findIndex(stateObject => {
+	                return stateObject.k === this.historyState.eh_ck;
+	            });
+	        };
+	        this.cutHitoryList = (topKey) => {
+	            const topIndex = this.historyState.eh_sl.findIndex(s => {
+	                return s.k === topKey;
+	            });
+	            if (topIndex > -1) {
+	                this.historyState.eh_sl.splice(topIndex + 1, this.historyState.eh_sl.length - topIndex - 1);
+	            }
+	        };
+	        this.isBack = (key) => {
+	            return this.historyList.eh_sl.some(s => {
+	                return s.k === key;
 	            });
 	        };
 	        this.handlerRawHistoryState = (ev) => {
-	            const { historyKey = undefined, state = undefined } = ev.state || {};
-	            if (this.predictionAction && this.predictionAction.key === historyKey) {
+	            const { eh_ck = undefined, eh_sl = undefined } = ev.state || {};
+	            if (this.predictionAction && this.predictionAction.key === eh_ck) {
 	                const cb = this.predictionAction.cb;
 	                this.predictionAction = undefined;
+	                this.historyState.eh_ck = eh_ck;
+	                this.cutHitoryList(eh_ck);
+	                rawHistory.replaceState(mobx.toJS(this.historyState), '');
 	                if (typeof cb === 'function') {
 	                    cb();
 	                }
 	            }
 	            else {
-	                if (utils.isKey(historyKey)) {
-	                    if (this.indexOf(historyKey) > -1) {
-	                        this.rawHistoryList.forEach(historyObject => {
-	                            if (historyObject.historyKey === historyKey) {
-	                                historyObject.isActive = true;
-	                            }
-	                            else {
-	                                historyObject.isActive = false;
-	                            }
-	                        });
+	                if (utils.isEditableHistoryState(ev.state)) {
+	                    if (this.isBack(eh_ck)) {
+	                        this.cutHitoryList(eh_ck);
 	                    }
 	                    else {
-	                        this.rawHistoryList.forEach(historyObject => {
-	                            historyObject.isActive = false;
-	                        });
-	                        this.rawHistoryList.push({
-	                            historyKey,
-	                            state,
-	                            isActive: true,
-	                            location: utils.getLocation(this.useHash ? utils.getHashPath() : window.location.pathname, this.basename)
-	                        });
+	                        this.historyState.eh_sl.push(eh_sl[this.historyState.eh_sl.length]);
 	                    }
+	                    this.historyState.eh_ck = eh_ck;
+	                    rawHistory.replaceState(mobx.toJS(this.historyState), '');
 	                }
 	                else {
-	                    const newHistoryKey = createHistoryKey_1$1.default();
-	                    rawHistory.replaceState({
-	                        historyKey: newHistoryKey
-	                    }, '');
-	                    this.rawHistoryList.splice(this.indexOfActive() + 1, this.rawHistoryList.length - this.indexOfActive());
-	                    this.rawHistoryList.forEach(historyObject => {
-	                        historyObject.isActive = false;
+	                    const newHistoryKey = utils.createHistoryKey();
+	                    this.historyState.eh_sl.splice(this.indexOfActive() + 1, this.historyState.eh_sl.length - this.indexOfActive() - 1);
+	                    this.historyState.eh_sl.push({
+	                        k: newHistoryKey,
+	                        s: null,
+	                        l: this.useHash ? utils_2.getHashPath() : window.location.pathname
 	                    });
-	                    this.rawHistoryList.push({
-	                        historyKey: newHistoryKey,
-	                        state: undefined,
-	                        isActive: true,
-	                        location: utils.getLocation(this.useHash ? utils.getHashPath() : window.location.pathname, this.basename)
-	                    });
+	                    this.historyState.eh_ck = newHistoryKey;
+	                    rawHistory.replaceState(mobx.toJS(this.historyState), '');
 	                }
 	            }
 	        };
 	        this.stepProcessor = (targetIndex, cb) => {
 	            targetIndex = this.indexOf(targetIndex);
 	            const activeIndex = this.indexOfActive();
-	            if (targetIndex !== activeIndex && targetIndex > -1) {
-	                const predictionKey = this.historyList[targetIndex].historyKey;
+	            if (targetIndex > -1 && targetIndex < activeIndex) {
+	                const predictionKey = this.historyState.eh_sl[targetIndex].k;
 	                this.predictionAction = {
 	                    key: predictionKey,
 	                    cb
@@ -270,102 +259,74 @@
 	                console.warn(`[push]: \`keyOrIndex\`=${keyOrIndex} is out of range'`);
 	                return;
 	            }
-	            const historyKey = createHistoryKey_1$1.default();
-	            const absoluteUrl = utils.getAbsolutePath(url, this.useHash, this.basename);
+	            const historyKey = utils.createHistoryKey();
+	            const absoluteUrl = utils_2.getAbsolutePath(url, this.useHash, this.basename);
 	            this.stepProcessor(targetIndex, () => {
-	                rawHistory.pushState({
-	                    historyKey,
-	                    state
-	                }, '', absoluteUrl);
-	                this.rawHistoryList.splice(targetIndex + 1, this.rawHistoryList.length - targetIndex);
-	                this.rawHistoryList.forEach(historyObject => {
-	                    historyObject.isActive = false;
+	                this.historyState.eh_sl.splice(targetIndex + 1, this.historyState.eh_sl.length - targetIndex - 1);
+	                this.historyState.eh_sl.push({
+	                    k: historyKey,
+	                    s: state,
+	                    l: this.useHash ? utils_2.getHashPath(absoluteUrl) : absoluteUrl
 	                });
-	                this.rawHistoryList.push({
-	                    isActive: true,
-	                    historyKey,
-	                    state,
-	                    location: url
-	                        ? utils.getLocation(url || '', '')
-	                        : this.rawHistoryList[this.rawHistoryList.length - 1]
-	                });
+	                this.historyState.eh_ck = historyKey;
+	                rawHistory.pushState(mobx.toJS(this.historyState), '', absoluteUrl || '/');
 	            });
 	            return historyKey;
 	        };
 	        this.replace = (params) => {
 	            const { state, url, keyOrIndex = this.indexOfActive() } = params;
 	            let targetIndex = this.indexOf(keyOrIndex);
-	            if (targetIndex < 0) {
+	            if (targetIndex < 0 || targetIndex > this.indexOfActive()) {
 	                console.warn(`[replace]: \`keyOrIndex\`=${keyOrIndex} is out of range'`);
 	                return;
 	            }
-	            const historyKey = createHistoryKey_1$1.default();
-	            const absoluteUrl = utils.getAbsolutePath(url, this.useHash, this.basename);
+	            const historyKey = utils.createHistoryKey();
+	            const absoluteUrl = utils_2.getAbsolutePath(url, this.useHash, this.basename);
 	            this.stepProcessor(targetIndex, () => {
-	                rawHistory.replaceState({
-	                    historyKey,
-	                    state
-	                }, '', absoluteUrl);
-	                this.rawHistoryList.forEach(historyObject => {
-	                    historyObject.isActive = false;
-	                });
-	                this.rawHistoryList.forEach((historyObject, index) => {
+	                this.historyState.eh_sl.forEach((stateObject, index) => {
 	                    if (index === targetIndex) {
-	                        historyObject.historyKey = historyKey;
-	                        historyObject.isActive = true;
-	                        historyObject.location = url
-	                            ? utils.getLocation(url || '', '')
-	                            : historyObject.location;
-	                        historyObject.state = state;
+	                        stateObject.k = historyKey;
+	                        stateObject.l = this.useHash ? utils_2.getHashPath(absoluteUrl) : absoluteUrl;
+	                        stateObject.s = state;
 	                    }
 	                });
+	                this.historyState.eh_ck = historyKey;
+	                rawHistory.replaceState(mobx.toJS(this.historyState), '', absoluteUrl || '/');
 	            });
+	            return historyKey;
 	        };
 	        this.active = (keyOrIndex) => {
 	            const targetIndex = this.indexOf(keyOrIndex);
-	            if (targetIndex < 0) {
+	            if (targetIndex < 0 || targetIndex > this.indexOfActive()) {
 	                console.warn(`[active]: \`keyOrIndex\`=${keyOrIndex} is out of range'`);
 	                return;
 	            }
-	            this.stepProcessor(targetIndex, () => {
-	                this.rawHistoryList.forEach((historyObject, index) => {
-	                    if (index === targetIndex) {
-	                        historyObject.isActive = true;
-	                    }
-	                    else {
-	                        historyObject.isActive = false;
-	                    }
-	                });
-	            });
+	            this.stepProcessor(targetIndex);
 	        };
 	        this.basename = basename ? PathUtils.stripTrailingSlash(PathUtils.addLeadingSlash(basename)) : '';
 	        this.useHash = useHash;
 	        window.addEventListener(PopStateEvent, this.handlerRawHistoryState);
-	        const { historyKey = undefined, state = undefined } = rawHistory.state || {};
-	        if (utils.isKey(historyKey)) {
-	            this.rawHistoryList.push({
-	                historyKey,
-	                state,
-	                isActive: true,
-	                location: utils.getLocation(this.useHash ? utils.getHashPath() : window.location.pathname, this.basename)
-	            });
+	        if (utils.isEditableHistoryState(rawHistory.state)) {
+	            this.historyState = mobx.observable(rawHistory.state);
 	        }
 	        else {
-	            const historyKey = createHistoryKey_1$1.default();
-	            rawHistory.replaceState({
-	                historyKey,
-	                state: initState
-	            }, '');
-	            this.rawHistoryList.push({
-	                historyKey,
-	                state: initState,
-	                isActive: true,
-	                location: utils.getLocation(this.useHash ? utils.getHashPath() : window.location.pathname, this.basename)
-	            });
+	            const historyKey = utils.createHistoryKey();
+	            const newHistoryState = {
+	                eh_ck: historyKey,
+	                eh_sl: [
+	                    {
+	                        k: historyKey,
+	                        s: initState,
+	                        l: this.useHash ? utils_2.getHashPath() : window.location.pathname
+	                    }
+	                ]
+	            };
+	            this.historyState = mobx.observable(newHistoryState);
+	            rawHistory.replaceState(mobx.toJS(this.historyState), '');
 	        }
 	    }
 	    get historyList() {
-	        return this.rawHistoryList;
+	        return this.historyState;
 	    }
 	}
 	exports.HistoryEditor = HistoryEditor;
@@ -395,7 +356,7 @@
 	        replace: historyEditor.replace,
 	        active: historyEditor.active,
 	        historyList: historyEditor.historyList,
-	        length: historyEditor.historyList.length
+	        length: historyEditor.historyList.eh_sl.length
 	    };
 	}
 	exports.default = createEditableHistory;
