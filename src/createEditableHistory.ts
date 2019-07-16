@@ -1,4 +1,4 @@
-import { HistoryEditor } from "./HistoryEditor";
+import { HistoryEditor } from './HistoryEditor'
 
 type createEditableHistoryProps = {
     basename?: string
@@ -26,6 +26,6 @@ export default function createEditableHistory(props: createEditableHistoryProps 
         replace: historyEditor.replace,
         active: historyEditor.active,
         historyList: historyEditor.historyList,
-        length: historyEditor.historyList.length
+        length: historyEditor.historyList.eh_sl.length
     }
 }

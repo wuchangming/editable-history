@@ -6,6 +6,7 @@ import {
 } from './history-utils/PathUtils'
 
 export function isEditableHistoryState(state: any = {}) {
+    state = state || {}
     return state.hasOwnProperty('eh_ck') && state.hasOwnProperty('eh_sl')
 }
 
@@ -33,22 +34,21 @@ export function getLocation(path: string, basename: string) {
     }
 }
 
-export function getHashPath() {
-    const href = window.location.href
+export function getHashPath(url?: string) {
+    const href = url || window.location.href
     const hashIndex = href.indexOf('#')
     return hashIndex === -1 ? '' : href.substring(hashIndex + 1)
 }
 
 export function getAbsolutePath(url: string | undefined, useHash: boolean, basename: string) {
-    if (url) {
-        if (useHash) {
-            url =
-                window.location.pathname + '#' + basename + stripTrailingSlash(addLeadingSlash(url))
-        } else {
-            url = basename + stripTrailingSlash(addLeadingSlash(url))
-        }
+    url = url || ''
+    if (useHash) {
+        url = window.location.pathname + '#' + basename + stripTrailingSlash(addLeadingSlash(url))
+    } else {
+        url = basename + stripTrailingSlash(addLeadingSlash(url))
     }
-    return url || ''
+
+    return url
 }
 
 export function createHistoryKey() {

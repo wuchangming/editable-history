@@ -1,6 +1,5 @@
-import deepEqual from 'deep-equal'
 import { createHistoryKey, isEditableHistoryState } from './utils'
-import { isKey, isIndex, getLocation, getHashPath, getAbsolutePath } from './utils'
+import { isKey, isIndex, getHashPath, getAbsolutePath } from './utils'
 import { stripTrailingSlash, addLeadingSlash } from './history-utils/PathUtils'
 
 const PopStateEvent = 'popstate'
@@ -9,7 +8,7 @@ const rawHistory = window.history
 type ScreenStateObject = {
     k: string //history key
     s: unknown // business state
-    l: string // `window.location.href` or `hash`
+    l: string // `window.location.pathname` or `hash`
 }
 
 type HistoryState = {
@@ -39,7 +38,7 @@ export class HistoryEditor {
     private historyState: HistoryState
     private basename = ''
     private useHash = false
-    constructor({ basename = '', initState, useHash = false }: HistoryEditorProps) {
+    constructor({ basename = '', initState = null, useHash = false }: HistoryEditorProps) {
         this.basename = basename ? stripTrailingSlash(addLeadingSlash(basename)) : ''
         this.useHash = useHash
         window.addEventListener(PopStateEvent, this.handlerRawHistoryState)
@@ -48,25 +47,18 @@ export class HistoryEditor {
             this.historyState = rawHistory.state
         } else {
             const historyKey = createHistoryKey()
-            rawHistory.replaceState(
-                {
-                    historyKey,
-                    state: initState
-                },
-                ''
-            )
-
             const newHistoryState = {
                 eh_ck: historyKey,
                 eh_sl: [
                     {
                         k: historyKey,
                         s: initState,
-                        l: this.useHash ? getHashPath() : window.location.href
+                        l: this.useHash ? getHashPath() : window.location.pathname
                     }
                 ]
             }
             this.historyState = newHistoryState
+            rawHistory.replaceState(this.historyState, '')
         }
     }
 
@@ -107,29 +99,25 @@ export class HistoryEditor {
             }
         } else {
             if (isEditableHistoryState(ev.state)) {
-                if (!deepEqual(this.historyState.eh_sl, eh_sl)) {
-                    rawHistory.replaceState(this.historyState, '')
-                    this.historyState.eh_sl = eh_sl
-                }
                 this.historyState.eh_ck = eh_ck
+                rawHistory.replaceState(this.historyState, '')
             } else {
                 const newHistoryKey = createHistoryKey()
 
-                const newStateList = this.historyState.eh_sl.splice(
+                this.historyState.eh_sl.splice(
                     this.indexOfActive() + 1,
-                    this.historyState.eh_sl.length - this.indexOfActive()
+                    this.historyState.eh_sl.length - this.indexOfActive() - 1
                 )
-                newStateList.push({
+
+                this.historyState.eh_sl.push({
                     k: newHistoryKey,
-                    s: undefined,
+                    s: null,
                     l: this.useHash ? getHashPath() : window.location.pathname
                 })
-                const newHistoryState = {
-                    eh_ck,
-                    eh_sl: newStateList
-                }
-                rawHistory.replaceState(newHistoryKey, '')
-                this.historyState = newHistoryState
+
+                this.historyState.eh_ck = newHistoryKey
+
+                rawHistory.replaceState(this.historyState, '')
             }
         }
     }
@@ -163,19 +151,19 @@ export class HistoryEditor {
         const absoluteUrl = getAbsolutePath(url, this.useHash, this.basename)
 
         this.stepProcessor(targetIndex, () => {
-            const newStateList = this.historyState.eh_sl.splice(
+            this.historyState.eh_sl.splice(
                 targetIndex + 1,
-                this.historyState.eh_sl.length - targetIndex
+                this.historyState.eh_sl.length - targetIndex - 1
             )
 
-            const newHistoryState = {
-                eh_ck: historyKey,
-                eh_sl: newStateList
-            }
+            this.historyState.eh_sl.push({
+                k: historyKey,
+                s: state,
+                l: this.useHash ? getHashPath(absoluteUrl) : absoluteUrl
+            })
+            this.historyState.eh_ck = historyKey
 
-            rawHistory.pushState(newHistoryState, '', absoluteUrl)
-
-            this.historyState = newHistoryState
+            rawHistory.pushState(this.historyState, '', absoluteUrl || '/')
         })
         return historyKey
     }
@@ -194,19 +182,16 @@ export class HistoryEditor {
             this.historyState.eh_sl.forEach((stateObject, index) => {
                 if (index === targetIndex) {
                     stateObject.k = historyKey
-                    stateObject.l = absoluteUrl
+                    stateObject.l = this.useHash ? getHashPath(absoluteUrl) : absoluteUrl
                     stateObject.s = state
                 }
             })
 
-            const newHistoryState = {
-                eh_ck: historyKey,
-                eh_sl: this.historyState.eh_sl
-            }
+            this.historyState.eh_ck = historyKey
 
-            rawHistory.replaceState(newHistoryState, '', absoluteUrl)
-            this.historyState = newHistoryState
+            rawHistory.replaceState(this.historyState, '', absoluteUrl || '/')
         })
+        return historyKey
     }
 
     active = (keyOrIndex: string | number) => {
@@ -221,6 +206,6 @@ export class HistoryEditor {
     }
 
     get historyList() {
-        return undefined
+        return this.historyState
     }
 }
